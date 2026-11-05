@@ -1,0 +1,7 @@
+dist
+node_modules
+.wrangler
+CMS_PLAN.md
+package-lock.json
+playwright-report
+test-results

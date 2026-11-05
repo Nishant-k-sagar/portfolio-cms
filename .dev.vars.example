@@ -1,0 +1,6 @@
+# Local development values. Copy to .dev.vars and fill in. Never commit .dev.vars.
+GITHUB_OAUTH_CLIENT_ID=your-local-oauth-client-id
+GITHUB_OAUTH_CLIENT_SECRET=your-local-oauth-client-secret
+GITHUB_WRITE_TOKEN=your-local-fine-grained-token
+SESSION_SECRET=replace-with-32-plus-random-bytes
+ALLOWED_LOGINS=Nishant-k-sagar

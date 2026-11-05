@@ -1,0 +1,48 @@
+{
+  "name": "portfolio-cms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Draft-and-publish Git-backed CMS for the Nishant-k-sagar portfolio site.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run build && wrangler pages dev dist --compatibility-date=2024-09-25 --port=8788",
+    "dev:vite": "vite --host 0.0.0.0",
+    "build": "vite build && tsc --noEmit",
+    "preview": "wrangler pages dev dist --compatibility-date=2024-09-25 --port=8788",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write \"{src,functions,shared,tests,scripts}/**/*.{ts,tsx,css,md,json}\" \"*.{ts,js,json,md}\"",
+    "format:check": "prettier --check \"{src,functions,shared,tests,scripts}/**/*.{ts,tsx,css,md,json}\" \"*.{ts,js,json,md}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "ci": "npm run lint && npm run typecheck && npm run test && npm run build"
+  },
+  "dependencies": {
+    "dompurify": "^3.1.6",
+    "marked": "^12.0.2",
+    "preact": "^10.24.3",
+    "yaml": "^2.5.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240925.0",
+    "@eslint/js": "^8.57.1",
+    "@playwright/test": "^1.48.2",
+    "@preact/preset-vite": "^2.8.2",
+    "@types/node": "^26.6.6",
+    "@typescript-eslint/eslint-plugin": "^8.10.0",
+    "@typescript-eslint/parser": "^8.10.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.0",
+    "jsdom": "^25.0.1",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.9",
+    "vitest": "^2.1.3",
+    "wrangler": "^3.80.0"
+  }
+}
