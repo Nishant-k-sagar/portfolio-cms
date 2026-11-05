@@ -1,3 +1,4 @@
+import { useEffect, useState } from "preact/hooks";
 import type { FieldConfig, FieldValue } from "../../shared/types";
 
 interface Props {
@@ -109,6 +110,19 @@ export function FieldInput({ field, value, error, onChange }: Props) {
     );
   }
 
+  if (field.type === "list") {
+    return (
+      <ListField
+        field={field}
+        value={value}
+        error={error}
+        onChange={onChange}
+        id={id}
+        describedBy={describedBy}
+      />
+    );
+  }
+
   const inputType =
     field.type === "date"
       ? "date"
@@ -117,10 +131,7 @@ export function FieldInput({ field, value, error, onChange }: Props) {
         : field.type === "url"
           ? "url"
           : "text";
-  const textValue =
-    field.type === "list" && Array.isArray(value)
-      ? value.join(", ")
-      : String(value ?? "");
+  const textValue = String(value ?? "");
 
   return (
     <div className="field">
@@ -138,15 +149,7 @@ export function FieldInput({ field, value, error, onChange }: Props) {
         placeholder={field.placeholder}
         onInput={(event) => {
           const raw = event.currentTarget.value;
-          if (field.type === "list")
-            onChange(
-              field.name,
-              raw
-                .split(",")
-                .map((item) => item.trim())
-                .filter(Boolean),
-            );
-          else if (field.type === "number")
+          if (field.type === "number")
             onChange(field.name, raw === "" ? undefined : Number(raw));
           else onChange(field.name, raw);
         }}
@@ -178,4 +181,60 @@ function FieldHelp({
       </p>
     );
   return null;
+}
+
+function parseList(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Comma-separated list input. It keeps the text exactly as typed (so commas and spaces are not
+ * erased while typing) and only tidies it to "a, b, c" when the field loses focus.
+ */
+function ListField({
+  field,
+  value,
+  error,
+  onChange,
+  id,
+  describedBy,
+}: Props & { id: string; describedBy?: string }) {
+  const items = Array.isArray(value) ? value : [];
+  const joined = items.join(", ");
+  const [text, setText] = useState(joined);
+
+  // Follow outside changes (loading an entry, restoring a local copy) without fighting typing.
+  useEffect(() => {
+    if (JSON.stringify(parseList(text)) !== JSON.stringify(items))
+      setText(joined);
+  }, [joined]);
+
+  const label = field.label ?? field.name;
+  return (
+    <div className="field">
+      <label htmlFor={id}>
+        {label}
+        {field.required ? " *" : ""}
+      </label>
+      <input
+        id={id}
+        className="input"
+        type="text"
+        value={text}
+        placeholder={field.placeholder}
+        aria-invalid={Boolean(error)}
+        aria-describedby={describedBy}
+        onInput={(event) => {
+          const raw = event.currentTarget.value;
+          setText(raw);
+          onChange(field.name, parseList(raw));
+        }}
+        onBlur={() => setText(joined)}
+      />
+      <FieldHelp id={describedBy} help={field.help} error={error} />
+    </div>
+  );
 }

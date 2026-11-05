@@ -21,6 +21,11 @@ import { MarkdownPreview } from "../components/MarkdownPreview";
 import { MediaPicker, type PreparedUpload } from "../components/MediaPicker";
 import { StateBadge } from "../components/StateBadge";
 import { Toolbar } from "../components/Toolbar";
+import {
+  applyAction,
+  type Edit,
+  type ToolbarAction,
+} from "../lib/markdownEdit";
 
 interface EditorProps {
   config: PublicConfig;
@@ -80,6 +85,8 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
   const collectionMissing = !foundCollection;
   const isNew = slugParam === "new";
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Where to put the caret once the textarea has been re-rendered with new text.
+  const pendingSelection = useRef<{ start: number; end: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -88,6 +95,8 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
   );
   const [body, setBody] = useState("");
   const [slugLocked, setSlugLocked] = useState(false);
+  // After the first save of a new entry the slug is fixed, so later title edits cannot fork a second draft.
+  const [createdSlug, setCreatedSlug] = useState<string | null>(null);
   const [source, setSource] = useState<"main" | "draft">("main");
   const [entryState, setEntryState] = useState<EntryState>("draft");
   const [expectedDraftSha, setExpectedDraftSha] = useState<string | null>(null);
@@ -130,6 +139,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
       setFields(defaults);
       setBody("");
       setSlugLocked(false);
+      setCreatedSlug(null);
       setSource("main");
       setEntryState("draft");
       setExpectedDraftSha(null);
@@ -236,8 +246,18 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
   const stats = useMemo(() => readingStats(body), [body]);
   const effectiveSlug = useMemo(() => {
     if (!isNew) return slugParam;
-    return slugify(String(fields.title ?? ""));
-  }, [isNew, slugParam, fields.title]);
+    return createdSlug ?? slugify(String(fields.title ?? ""));
+  }, [isNew, slugParam, fields.title, createdSlug]);
+
+  // Restore the caret after a toolbar or shortcut edit has been rendered.
+  useEffect(() => {
+    const selection = pendingSelection.current;
+    const textarea = textareaRef.current;
+    if (!selection || !textarea) return;
+    pendingSelection.current = null;
+    textarea.focus();
+    textarea.setSelectionRange(selection.start, selection.end);
+  }, [body]);
 
   if (collectionMissing) {
     return (
@@ -284,13 +304,41 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const next = `${body.slice(0, start)}${markdown}${body.slice(end)}`;
+    const cursor = start + markdown.length;
+    pendingSelection.current = { start: cursor, end: cursor };
     setBody(next);
     setDirty(true);
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const cursor = start + markdown.length;
-      textarea.setSelectionRange(cursor, cursor);
-    });
+  }
+
+  function applyEdit(edit: Edit) {
+    pendingSelection.current = { start: edit.selStart, end: edit.selEnd };
+    markDirty(() => setBody(edit.text));
+  }
+
+  function runAction(action: ToolbarAction) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    applyEdit(
+      applyAction(action, body, textarea.selectionStart, textarea.selectionEnd),
+    );
+  }
+
+  function handleEditorKeyDown(event: KeyboardEvent) {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+    const key = event.key.toLowerCase();
+    if (key === "s") {
+      event.preventDefault();
+      if (!saving && !publishing) void persistDraft();
+    } else if (key === "b") {
+      event.preventDefault();
+      runAction("bold");
+    } else if (key === "i") {
+      event.preventDefault();
+      runAction("italic");
+    } else if (key === "k") {
+      event.preventDefault();
+      runAction("link");
+    }
   }
 
   function handlePreparedImage(upload: PreparedUpload) {
@@ -317,7 +365,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
   async function persistDraft(
     options: { silent?: boolean } = {},
   ): Promise<{ slug: string } | null> {
-    const targetSlug = isNew ? effectiveSlug : slugParam;
+    const targetSlug = isNew ? (createdSlug ?? effectiveSlug) : slugParam;
     if (!targetSlug || !isValidSlug(targetSlug)) {
       setFieldErrors({
         slug: "Enter a valid title so a slug can be generated.",
@@ -364,6 +412,15 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
       setUnknownFields(result.unknownFields);
       setDirty(false);
       localStorage.removeItem(storageKey(collection.name, slugParam));
+      if (isNew && !createdSlug) {
+        // Pin the slug and point the address bar at the saved draft (without reloading the editor).
+        setCreatedSlug(targetSlug);
+        window.history.replaceState(
+          null,
+          "",
+          `#/edit/${encodeURIComponent(collection.name)}/${encodeURIComponent(targetSlug)}`,
+        );
+      }
       if (!options.silent) setNotice("Draft saved to cms-drafts.");
       return { slug: targetSlug };
     } catch (error) {
@@ -418,7 +475,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
   }
 
   async function reloadLiveVersion() {
-    const targetSlug = isNew ? effectiveSlug : slugParam;
+    const targetSlug = isNew ? (createdSlug ?? effectiveSlug) : slugParam;
     if (!targetSlug) return;
     try {
       const doc = await getEntry(collection.name, targetSlug, "main");
@@ -606,7 +663,9 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
                     aria-describedby="slug-help"
                   />
                   <p id="slug-help" className="muted">
-                    Derived from the title. Lowercase, hyphens, ASCII.
+                    {createdSlug
+                      ? "Locked after the first save so edits do not create a second draft."
+                      : "Derived from the title. Lowercase, hyphens, ASCII."}
                   </p>
                   {fieldErrors.slug ? (
                     <p className="error">{fieldErrors.slug}</p>
@@ -686,17 +745,17 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
             </span>
           </div>
           <Toolbar
-            textareaRef={textareaRef}
-            body={body}
-            onBodyChange={(next) => markDirty(() => setBody(next))}
+            disabled={tab !== "edit"}
+            onAction={runAction}
             onImage={() => setMediaOpen(true)}
           />
           {tab === "edit" ? (
             <textarea
               ref={textareaRef}
-              className="textarea"
+              className="textarea editor-body"
               value={body}
               aria-label="Markdown body"
+              onKeyDown={handleEditorKeyDown}
               onInput={(event) =>
                 markDirty(() => setBody(event.currentTarget.value))
               }

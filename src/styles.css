@@ -40,8 +40,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family:
-    "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   line-height: 1.55;
 }
 
@@ -446,4 +445,15 @@ tr:last-child td {
   .nav {
     margin-left: 0;
   }
+}
+
+/* Comfortable writing area: tall by default, grows with the text where the browser supports it. */
+.editor-body {
+  min-height: max(360px, 55vh);
+  field-sizing: content;
+}
+
+/* Keep the caret clear of the sticky save bar when the browser scrolls it into view. */
+html {
+  scroll-padding-bottom: 6rem;
 }
