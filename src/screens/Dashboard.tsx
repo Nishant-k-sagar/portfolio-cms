@@ -19,31 +19,28 @@ export function Dashboard({ config }: { config: PublicConfig }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      ...config.collections.map((collection) => listContent(collection.name)),
-      listDrafts(),
-      getDeployStatus(),
-    ])
-      .then((results) => {
-        if (cancelled) return;
-        const deployStatus = results[results.length - 1] as Awaited<
-          ReturnType<typeof getDeployStatus>
-        >;
-        const draftResult = results[results.length - 2] as {
-          drafts: EntrySummary[];
-        };
-        const all = (
-          results.slice(0, -2) as Array<{ entries: EntrySummary[] }>
-        ).flatMap((result) => result.entries);
-        setEntries(all);
-        setDrafts(draftResult.drafts);
-        setDeploy(deployStatus);
-      })
-      .catch((err) =>
-        setError(
-          err instanceof Error ? err.message : "Could not load dashboard.",
+    void (async () => {
+      const [lists, draftResult, deployResult] = await Promise.all([
+        Promise.allSettled(
+          config.collections.map((collection) => listContent(collection.name)),
         ),
-      );
+        listDrafts().catch(() => ({ drafts: [] as EntrySummary[] })),
+        getDeployStatus().catch(() => null),
+      ]);
+      if (cancelled) return;
+      // One failing collection must not blank the whole dashboard.
+      const failed: string[] = [];
+      const all: EntrySummary[] = [];
+      lists.forEach((result, index) => {
+        if (result.status === "fulfilled") all.push(...result.value.entries);
+        else failed.push(config.collections[index].label);
+      });
+      setEntries(all);
+      setDrafts(draftResult.drafts);
+      setDeploy(deployResult);
+      if (failed.length > 0)
+        setError(`Could not load: ${failed.join(", ")}. Counts exclude them.`);
+    })();
     return () => {
       cancelled = true;
     };

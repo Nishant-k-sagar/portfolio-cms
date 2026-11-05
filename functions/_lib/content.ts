@@ -331,11 +331,16 @@ async function listCollection(
   for (const slug of slugs) {
     const main = mainMap.get(slug);
     const draft = draftMap.get(slug);
-    const meta = await readJsonFile<DraftMetadata>(
-      client,
-      metadataPath(collection.name, slug),
-      config.repo.draftsBranch,
-    );
+    // Existing files may predate the slug rules (for example an uppercase letter in the file
+    // name). List them anyway instead of failing the whole collection; they just have no draft
+    // metadata, because drafts can only be created for valid slugs.
+    const meta = isValidSlug(slug)
+      ? await readJsonFile<DraftMetadata>(
+          client,
+          metadataPath(collection.name, slug),
+          config.repo.draftsBranch,
+        )
+      : null;
     const chosen = draft ?? main;
     if (!chosen) continue;
     const raw = base64ToUtf8(
