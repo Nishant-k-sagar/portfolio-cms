@@ -9,7 +9,12 @@ import type {
   EntryState,
 } from "../../shared/types";
 import type { Env } from "./env";
-import { GitHubClient, base64ToUtf8, utf8ToBase64 } from "./github";
+import {
+  GitHubClient,
+  base64ToUtf8,
+  utf8ToBase64,
+  type FolderFile,
+} from "./github";
 import { HttpError } from "./http";
 import {
   assertMediaPath,
@@ -294,9 +299,36 @@ export async function listEntries(
   const collections = collectionName
     ? [assertCollection(collectionName)]
     : config.collections;
+  // One request for every collection, on both branches (see GitHubClient.listFolders).
+  const folders = await client.listFolders(
+    collections.flatMap((collection) => [
+      {
+        key: `${collection.name}:main`,
+        branch: config.repo.branch,
+        folder: collection.folder,
+      },
+      {
+        key: `${collection.name}:draft`,
+        branch: config.repo.draftsBranch,
+        folder: collection.folder,
+      },
+      {
+        key: `${collection.name}:meta`,
+        branch: config.repo.draftsBranch,
+        folder: `.cms/${collection.name}`,
+      },
+    ]),
+  );
   const out: EntrySummary[] = [];
   for (const collection of collections) {
-    out.push(...(await listCollection(client, collection)));
+    out.push(
+      ...summarizeCollection(
+        collection,
+        folders.get(`${collection.name}:main`) ?? [],
+        folders.get(`${collection.name}:draft`) ?? [],
+        folders.get(`${collection.name}:meta`) ?? [],
+      ),
+    );
   }
   out.sort((a, b) => {
     const field = collections.length === 1 ? collections[0].sort.field : "date";
@@ -308,51 +340,42 @@ export async function listEntries(
   return out;
 }
 
-async function listCollection(
-  client: GitHubClient,
-  collection: CollectionConfig,
-): Promise<EntrySummary[]> {
-  const [mainFiles, draftFiles, metadataFiles] = await Promise.all([
-    client.branchFiles(config.repo.branch, collection.folder),
-    client.branchFiles(config.repo.draftsBranch, collection.folder),
-    client.branchFiles(config.repo.draftsBranch, `.cms/${collection.name}`),
-  ]);
-  const mainMap = fileMap(mainFiles?.files ?? [], collection.folder);
-  const draftMap = fileMap(draftFiles?.files ?? [], collection.folder);
-  const metaShaMap = new Map(
-    (metadataFiles?.files ?? []).map((file) => [
-      slugFromPath(file.path),
-      file.sha,
-    ]),
-  );
+function byBaseName(files: FolderFile[], extension: string) {
+  const map = new Map<string, FolderFile>();
+  for (const file of files) {
+    if (file.name.endsWith(extension))
+      map.set(file.name.slice(0, -extension.length), file);
+  }
+  return map;
+}
 
-  const slugs = new Set([...mainMap.keys(), ...draftMap.keys()]);
+function summarizeCollection(
+  collection: CollectionConfig,
+  mainFiles: FolderFile[],
+  draftFiles: FolderFile[],
+  metaFiles: FolderFile[],
+): EntrySummary[] {
+  const mainMap = byBaseName(mainFiles, ".md");
+  const draftMap = byBaseName(draftFiles, ".md");
+  const metaMap = byBaseName(metaFiles, ".json");
   const summaries: EntrySummary[] = [];
-  for (const slug of slugs) {
+  for (const slug of new Set([...mainMap.keys(), ...draftMap.keys()])) {
     const main = mainMap.get(slug);
     const draft = draftMap.get(slug);
-    // Existing files may predate the slug rules (for example an uppercase letter in the file
-    // name). List them anyway instead of failing the whole collection; they just have no draft
-    // metadata, because drafts can only be created for valid slugs.
-    const meta = isValidSlug(slug)
-      ? await readJsonFile<DraftMetadata>(
-          client,
-          metadataPath(collection.name, slug),
-          config.repo.draftsBranch,
-        )
-      : null;
     const chosen = draft ?? main;
     if (!chosen) continue;
-    const raw = base64ToUtf8(
-      (
-        await client.getFile(
-          chosen.path,
-          draft ? config.repo.draftsBranch : config.repo.branch,
-        )
-      ).content,
-    );
-    const parsed = parseFrontmatter(raw);
-    const data = parsed.data;
+
+    // Legacy files with non-conforming slugs are still listed; they simply have no draft metadata.
+    let meta: DraftMetadata | null = null;
+    const metaText = metaMap.get(slug)?.text;
+    if (metaText) {
+      try {
+        meta = JSON.parse(metaText) as DraftMetadata;
+      } catch {
+        meta = null;
+      }
+    }
+    const data = chosen.text ? parseFrontmatter(chosen.text).data : {};
     let state: EntryState = "published";
     if (draft && !main) state = "draft";
     else if (draft && main)
@@ -372,38 +395,8 @@ async function listCollection(
       baseSha: meta?.baseSha,
       unknownFields: unknownFields(data, collection),
     });
-    void metaShaMap;
   }
   return summaries;
-}
-
-function fileMap(
-  files: Array<{ path: string; sha: string | null }>,
-  folder: string,
-): Map<string, { path: string; sha: string }> {
-  const map = new Map<string, { path: string; sha: string }>();
-  const prefix = `${folder}/`;
-  for (const file of files) {
-    if (
-      !file.sha ||
-      !file.path.startsWith(prefix) ||
-      !file.path.endsWith(".md")
-    )
-      continue;
-    if (file.path.slice(prefix.length).includes("/")) continue;
-    map.set(slugFromPath(file.path), { path: file.path, sha: file.sha });
-  }
-  return map;
-}
-
-function slugFromPath(path: string): string {
-  return (
-    path
-      .split("/")
-      .pop()
-      ?.replace(/\.md$/, "")
-      .replace(/\.json$/, "") ?? ""
-  );
 }
 
 export async function getEntry(
@@ -617,20 +610,24 @@ async function assertSlugUnique(
   slug: string,
   currentPath: string,
 ): Promise<void> {
+  const branches = [config.repo.branch, config.repo.draftsBranch];
+  // One request for every collection on both branches, names only.
+  const folders = await client.listFolders(
+    config.collections.flatMap((other) =>
+      branches.map((branch) => ({
+        key: `${other.name}|${branch}`,
+        branch,
+        folder: other.folder,
+      })),
+    ),
+    false,
+  );
   for (const other of config.collections) {
-    for (const branch of [config.repo.branch, config.repo.draftsBranch]) {
-      const files = await client
-        .branchFiles(branch, other.folder)
-        .catch(() => null);
-      for (const file of files?.files ?? []) {
-        if (slugFromPath(file.path) !== slug) continue;
+    for (const branch of branches) {
+      for (const file of folders.get(`${other.name}|${branch}`) ?? []) {
+        if (!file.name.endsWith(".md")) continue;
+        if (file.name.slice(0, -3) !== slug) continue;
         if (file.path === currentPath) continue;
-        if (
-          other.name === collection.name &&
-          branch === config.repo.draftsBranch &&
-          file.path === currentPath
-        )
-          continue;
         throw new HttpError(
           400,
           "validation_failed",
@@ -642,4 +639,5 @@ async function assertSlugUnique(
       }
     }
   }
+  void collection;
 }

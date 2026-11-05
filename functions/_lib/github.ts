@@ -36,6 +36,14 @@ export interface GitFile {
   size: number;
 }
 
+export interface FolderFile {
+  name: string;
+  path: string;
+  sha: string;
+  /** File text, or null for binary or very large files. */
+  text: string | null;
+}
+
 export interface NewTreeEntry {
   path: string;
   mode?: "100644" | "100755" | "040000" | "160000" | "120000";
@@ -253,6 +261,80 @@ export class GitHubClient {
         (item.path === prefix || item.path.startsWith(normalizedPrefix)),
     );
     return { headSha: ref.object.sha, treeSha: commit.tree.sha, files };
+  }
+
+  /**
+   * Lists several folders (each on a given branch) together with every file's text, in ONE
+   * GraphQL request. Cloudflare Workers allow only about 50 outgoing requests per invocation on
+   * the free plan, so reading files one REST call at a time does not scale past a few dozen
+   * entries (and made each page load take many seconds). A folder or branch that does not exist
+   * simply yields an empty list.
+   */
+  async listFolders(
+    requests: Array<{ key: string; branch: string; folder: string }>,
+    withText = true,
+  ): Promise<Map<string, FolderFile[]>> {
+    const [owner, name] = this.repo.split("/");
+    const blob = withText ? "object { ... on Blob { text } }" : "";
+    const selections = requests
+      .map(
+        (_, i) =>
+          `f${i}: object(expression: $e${i}) { ... on Tree { entries { name type oid ${blob} } } }`,
+      )
+      .join("\n");
+    const declarations = requests.map((_, i) => `$e${i}: String!`).join(", ");
+    const query = `query($owner: String!, $name: String!, ${declarations}) { repository(owner: $owner, name: $name) { ${selections} } }`;
+    const variables: Record<string, string> = { owner, name };
+    requests.forEach((request, i) => {
+      variables[`e${i}`] =
+        `${request.branch}:${normalizeRepoPath(request.folder)}`;
+    });
+
+    type Entry = {
+      name: string;
+      type: string;
+      oid: string;
+      object?: { text?: string | null } | null;
+    };
+    const result = await this.api<{
+      data?: {
+        repository?: Record<string, { entries?: Entry[] } | null> | null;
+      };
+    }>("/graphql", {
+      method: "POST",
+      body: JSON.stringify({ query, variables }),
+    });
+    const repository = result.data?.repository;
+    if (!repository) {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          message: "GraphQL returned no repository",
+        }),
+      );
+      throw new HttpError(
+        502,
+        "upstream_error",
+        "GitHub request failed. Try again later.",
+      );
+    }
+    const out = new Map<string, FolderFile[]>();
+    requests.forEach((request, i) => {
+      const folder = normalizeRepoPath(request.folder);
+      const entries = repository[`f${i}`]?.entries ?? [];
+      out.set(
+        request.key,
+        entries
+          .filter((entry) => entry.type === "blob")
+          .map((entry) => ({
+            name: entry.name,
+            path: `${folder}/${entry.name}`,
+            sha: entry.oid,
+            text: entry.object?.text ?? null,
+          })),
+      );
+    });
+    return out;
   }
 
   async latestWorkflowRun(branch = config.repo.branch): Promise<{
