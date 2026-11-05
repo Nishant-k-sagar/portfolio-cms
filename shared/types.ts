@@ -34,6 +34,8 @@ export interface CollectionConfig {
   sort: { field: string; order: "asc" | "desc" };
   listFields: string[];
   specialSlugLocked?: string[];
+  /** Where an entry appears on the live site, for the "View on site" link. {{slug}} is replaced. */
+  livePath?: string;
   fields: FieldConfig[];
 }
 
@@ -54,6 +56,8 @@ export interface RepoConfig {
 }
 
 export interface CmsConfig {
+  /** Public address of the portfolio site. */
+  siteUrl: string;
   repo: RepoConfig;
   allowList: string[];
   media: MediaConfig;

@@ -244,6 +244,9 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
   }, [publishResult]);
 
   const stats = useMemo(() => readingStats(body), [body]);
+  const hasStatusField = collection?.fields.some((f) => f.name === "status");
+  const statusValue = String(fields.status ?? "published");
+  const isHidden = Boolean(hasStatusField) && statusValue === "archived";
   const effectiveSlug = useMemo(() => {
     if (!isNew) return slugParam;
     return createdSlug ?? slugify(String(fields.title ?? ""));
@@ -288,6 +291,10 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
     );
   }
 
+  const liveUrlFor = (slug: string): string | null => {
+    if (!collection.livePath) return null;
+    return `${config.siteUrl}${collection.livePath.replace("{{slug}}", slug)}`;
+  };
   const locked =
     slugLocked || Boolean(collection.specialSlugLocked?.includes(slugParam));
   const publicPathFor = (fileName: string) =>
@@ -648,6 +655,32 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
           <a href={publishResult.commitUrl} target="_blank" rel="noreferrer">
             View commit
           </a>
+          {liveUrlFor(isNew ? (createdSlug ?? effectiveSlug) : slugParam) ? (
+            <>
+              {" "}
+              ·{" "}
+              <a
+                href={
+                  liveUrlFor(
+                    isNew ? (createdSlug ?? effectiveSlug) : slugParam,
+                  ) as string
+                }
+                target="_blank"
+                rel="noreferrer"
+              >
+                View on site
+              </a>{" "}
+              <span className="muted">
+                (live once the deploy below succeeds)
+              </span>
+            </>
+          ) : null}
+          {isHidden ? (
+            <p className="warning">
+              This entry is archived, so it is hidden from lists, the home page,
+              search and RSS. Only its direct link works.
+            </p>
+          ) : null}
           {publishResult.cleanupWarning ? (
             <p className="warning">{publishResult.cleanupWarning}</p>
           ) : null}
@@ -791,6 +824,15 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
                   Unsaved
                 </span>
               ) : null}
+              {hasStatusField ? (
+                <span
+                  className={`badge ${isHidden ? "draft" : ""}`}
+                  style={{ marginLeft: "0.5rem" }}
+                  title="Set in Metadata, Status"
+                >
+                  {isHidden ? "Will be hidden (archived)" : "Will be visible"}
+                </span>
+              ) : null}
             </div>
             <div className="toolbar" style={{ flexWrap: "nowrap" }}>
               <button
@@ -831,6 +873,20 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
             The live site will update through the existing GitHub Actions
             deploy.
           </p>
+          {isHidden ? (
+            <p role="alert" className="warning">
+              <strong>Status is "archived".</strong> The page will only work if
+              someone has its direct link. It will <strong>not</strong> appear
+              in your lists, on the home page, in search or in RSS. To make it
+              visible, close this, set Status to "published" in Metadata, and
+              publish again.
+            </p>
+          ) : hasStatusField ? (
+            <p className="muted">
+              Status is "published", so it will appear on the site once the
+              deploy finishes (about a minute).
+            </p>
+          ) : null}
           <p className="muted">
             Saving a draft never publishes. This action is explicit and cannot
             be undone from the CMS (use Git to revert).

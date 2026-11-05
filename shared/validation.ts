@@ -243,6 +243,7 @@ export function getCollection(name: string): CollectionConfig {
 
 export function publicConfig() {
   return {
+    siteUrl: config.siteUrl,
     repo: {
       owner: config.repo.owner,
       name: config.repo.name,

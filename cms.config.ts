@@ -1,6 +1,7 @@
 import type { CmsConfig } from "./shared/types";
 
 const config = {
+  siteUrl: "https://nishant-k-sagar.github.io",
   repo: {
     owner: "Nishant-k-sagar",
     name: "nishant-k-sagar.github.io",
@@ -19,6 +20,7 @@ const config = {
   collections: [
     {
       name: "blog",
+      livePath: "/blog/{{slug}}/",
       label: "Blog posts",
       folder: "src/content/blog",
       filename: "{{slug}}.md",
@@ -108,6 +110,7 @@ const config = {
     },
     {
       name: "projects",
+      livePath: "/projects/{{slug}}/",
       label: "Projects",
       folder: "src/content/projects",
       filename: "{{slug}}.md",
@@ -163,6 +166,7 @@ const config = {
     },
     {
       name: "pages",
+      livePath: "/{{slug}}/",
       label: "Pages",
       folder: "src/content/pages",
       filename: "{{slug}}.md",
@@ -204,6 +208,7 @@ const config = {
     },
     {
       name: "timeline",
+      livePath: "/timeline/{{slug}}/",
       label: "Timeline",
       folder: "src/content/timeline",
       filename: "{{slug}}.md",
@@ -271,6 +276,7 @@ const config = {
     },
     {
       name: "skills",
+      livePath: "/",
       label: "Skills",
       folder: "src/content/skills",
       filename: "{{slug}}.md",
@@ -313,6 +319,7 @@ const config = {
     },
     {
       name: "socials",
+      livePath: "/socials/",
       label: "Social links",
       folder: "src/content/socials",
       filename: "{{slug}}.md",
@@ -367,6 +374,7 @@ const config = {
     },
     {
       name: "home",
+      livePath: "/",
       label: "Home intro",
       folder: "src/content/home",
       filename: "{{slug}}.md",

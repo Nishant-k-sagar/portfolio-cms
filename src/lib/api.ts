@@ -48,6 +48,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export interface PublicConfig {
+  siteUrl: string;
   repo: { owner: string; name: string; branch: string };
   media: {
     folder: string;
