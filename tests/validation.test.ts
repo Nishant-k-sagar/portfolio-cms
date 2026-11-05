@@ -79,12 +79,15 @@ describe("validateFields", () => {
 });
 
 describe("config collections", () => {
-  it("defines the four expected collections", () => {
+  it("defines every collection the portfolio can be maintained from", () => {
     expect(config.collections.map((collection) => collection.name)).toEqual([
       "blog",
       "projects",
       "pages",
       "timeline",
+      "skills",
+      "socials",
+      "home",
     ]);
   });
 });
