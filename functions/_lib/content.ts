@@ -637,3 +637,167 @@ async function assertSlugUnique(
   }
   void collection;
 }
+
+export interface DeletedResult {
+  ok: true;
+  collection: string;
+  slug: string;
+  scope: "draft" | "all";
+  commitUrl?: string;
+}
+
+async function removeFromDrafts(
+  client: GitHubClient,
+  collection: CollectionConfig,
+  slug: string,
+  title: string,
+  message: string,
+): Promise<boolean> {
+  const draftBranch = config.repo.draftsBranch;
+  const ref = await client.getRef(draftBranch).catch(() => null);
+  if (!ref) return false;
+  const paths = [
+    contentPath(collection.name, slug),
+    metadataPath(collection.name, slug),
+  ];
+  const media = await client.branchFiles(
+    draftBranch,
+    mediaPrefix(collection.name, slug),
+  );
+  // Only touch paths that exist on the drafts branch, so the tree update cannot fail on a missing path.
+  const present: string[] = [];
+  for (const path of paths) {
+    if (await client.getFileIfExists(path, draftBranch)) present.push(path);
+  }
+  // The drafts branch starts as a copy of main, so media there may be identical to the live copies.
+  // Only remove media of entries that are real drafts (have metadata).
+  const hasMeta = present.includes(paths[1]);
+  const mediaPaths = hasMeta ? (media?.files ?? []).map((f) => f.path) : [];
+  if (!hasMeta) return false;
+  const commit = await client.getCommit(ref.object.sha);
+  const tree = await client.createTree(
+    commit.tree.sha,
+    [...present, ...mediaPaths].map((path) => ({
+      path,
+      type: "blob" as const,
+      sha: null,
+    })),
+  );
+  const next = await client.createCommit(
+    message.replace("{title}", title),
+    tree.sha,
+    [ref.object.sha],
+  );
+  await client.updateRef(draftBranch, next.sha, false);
+  return true;
+}
+
+/**
+ * scope "draft": throw away unpublished changes only. The live page, if any, is untouched.
+ * scope "all": remove the entry from the live site (commit to main) and discard its draft.
+ */
+export async function deleteEntry(
+  env: Env,
+  collectionName: string,
+  slugParam: string,
+  scope: string,
+): Promise<DeletedResult> {
+  const collection = assertCollection(collectionName);
+  const slug = assertSlugParam(slugParam);
+  if (scope !== "draft" && scope !== "all") {
+    throw new HttpError(400, "validation_failed", "Unknown delete scope.");
+  }
+  const client = new GitHubClient(env);
+  const path = contentPath(collection.name, slug);
+  const metaPath = metadataPath(collection.name, slug);
+  const draftBranch = config.repo.draftsBranch;
+
+  if (scope === "draft") {
+    const meta = await client
+      .getRef(draftBranch)
+      .then(() => readJsonFile<DraftMetadata>(client, metaPath, draftBranch))
+      .catch(() => null);
+    if (!meta)
+      throw new HttpError(404, "not_found", "There is no draft to discard.");
+    await removeFromDrafts(
+      client,
+      collection,
+      slug,
+      slug,
+      `draft: discard ${collection.name} "{title}"`,
+    );
+    console.log(
+      JSON.stringify({
+        level: "info",
+        event: "draft_discarded",
+        collection: collection.name,
+        slug,
+      }),
+    );
+    return { ok: true, collection: collection.name, slug, scope };
+  }
+
+  if (collection.specialSlugLocked?.includes(slug)) {
+    throw new HttpError(
+      400,
+      "locked",
+      "This entry is part of a fixed page of the site, so it cannot be deleted. Edit it instead.",
+    );
+  }
+  const mainRef = await client.getRef(config.repo.branch);
+  const mainFile = await client.getFileIfExists(path, config.repo.branch);
+  let commitUrl: string | undefined;
+  if (mainFile) {
+    const mainCommit = await client.getCommit(mainRef.object.sha);
+    const media = await client.branchFiles(
+      config.repo.branch,
+      mediaPrefix(collection.name, slug),
+    );
+    const tree = await client.createTree(
+      mainCommit.tree.sha,
+      [path, ...(media?.files ?? []).map((f) => f.path)].map((p) => ({
+        path: p,
+        type: "blob" as const,
+        sha: null,
+      })),
+    );
+    const commit = await client.createCommit(
+      `content: delete ${collection.name} "${slug}"`,
+      tree.sha,
+      [mainRef.object.sha],
+    );
+    await client.updateRef(config.repo.branch, commit.sha, false);
+    commitUrl = client.commitUrl(commit.sha);
+  }
+  let draftRemoved = false;
+  try {
+    draftRemoved = await removeFromDrafts(
+      client,
+      collection,
+      slug,
+      slug,
+      `draft: remove ${collection.name} "{title}" after delete`,
+    );
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "delete_draft_cleanup_failed",
+        error: String(error),
+      }),
+    );
+  }
+  if (!mainFile && !draftRemoved) {
+    throw new HttpError(404, "not_found", "Nothing to delete.");
+  }
+  console.log(
+    JSON.stringify({
+      level: "info",
+      event: "deleted",
+      collection: collection.name,
+      slug,
+      live: Boolean(mainFile),
+    }),
+  );
+  return { ok: true, collection: collection.name, slug, scope, commitUrl };
+}

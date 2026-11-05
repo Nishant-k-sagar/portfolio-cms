@@ -19,6 +19,8 @@ import { blobToBase64, type PreparedImage } from "../lib/images";
 import { FieldInput } from "../components/FieldInput";
 import { MarkdownPreview } from "../components/MarkdownPreview";
 import { MediaPicker, type PreparedUpload } from "../components/MediaPicker";
+import { navigate } from "../app/App";
+import { DeleteDialog } from "../components/DeleteDialog";
 import { StateBadge } from "../components/StateBadge";
 import { Toolbar } from "../components/Toolbar";
 import {
@@ -117,6 +119,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
     loadRecent(),
   );
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [conflictOpen, setConflictOpen] = useState(false);
   const [publishResult, setPublishResult] = useState<{
     commitUrl: string;
@@ -850,6 +853,16 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
               >
                 {publishing ? "Publishing…" : "Publish"}
               </button>
+              {!isNew || createdSlug ? (
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => setDeleteOpen(true)}
+                  disabled={saving || publishing}
+                >
+                  Delete
+                </button>
+              ) : null}
             </div>
           </div>
         </section>
@@ -862,6 +875,26 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
         onPrepared={handlePreparedImage}
         onInsertExisting={insertExisting}
       />
+
+      {deleteOpen ? (
+        <DeleteDialog
+          collection={collection.name}
+          slug={isNew ? (createdSlug ?? effectiveSlug) : slugParam}
+          title={String(fields.title ?? slugParam)}
+          state={entryState}
+          locked={Boolean(
+            collection.specialSlugLocked?.includes(
+              isNew ? (createdSlug ?? effectiveSlug) : slugParam,
+            ),
+          )}
+          onClose={() => setDeleteOpen(false)}
+          onDone={() => {
+            setDeleteOpen(false);
+            setDirty(false);
+            navigate(`#/list/${collection.name}`);
+          }}
+        />
+      ) : null}
 
       {publishConfirmOpen ? (
         <Modal

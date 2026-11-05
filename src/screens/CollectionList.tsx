@@ -3,6 +3,7 @@ import type { EntrySummary, EntryState } from "../../shared/types";
 import { listContent, type PublicConfig } from "../lib/api";
 import { StateBadge } from "../components/StateBadge";
 import { navigate } from "../app/App";
+import { DeleteDialog } from "../components/DeleteDialog";
 
 const STATE_FILTERS: Array<{ value: "all" | EntryState; label: string }> = [
   { value: "all", label: "All states" },
@@ -25,6 +26,9 @@ export function CollectionList({
   const [query, setQuery] = useState("");
   const [state, setState] = useState<"all" | EntryState>("all");
   const [error, setError] = useState("");
+  const [toDelete, setToDelete] = useState<EntrySummary | null>(null);
+  const [notice, setNotice] = useState("");
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     if (!collection) return;
@@ -36,7 +40,7 @@ export function CollectionList({
           err instanceof Error ? err.message : "Could not load entries.",
         ),
       );
-  }, [collection]);
+  }, [collection, reload]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -71,6 +75,11 @@ export function CollectionList({
       {error ? (
         <p role="alert" className="warning">
           {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p role="status" className="muted">
+          {notice}
         </p>
       ) : null}
       <div className="toolbar" style={{ marginBottom: "0.75rem" }}>
@@ -144,6 +153,14 @@ export function CollectionList({
                   >
                     Edit
                   </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    style={{ marginLeft: "0.4rem" }}
+                    onClick={() => setToDelete(entry)}
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}
@@ -176,12 +193,37 @@ export function CollectionList({
             >
               Edit
             </button>
+            <button
+              type="button"
+              className="danger"
+              style={{ marginLeft: "0.4rem" }}
+              onClick={() => setToDelete(entry)}
+            >
+              Delete
+            </button>
           </article>
         ))}
         {filtered.length === 0 ? (
           <p className="muted">No entries match.</p>
         ) : null}
       </div>
+      {toDelete ? (
+        <DeleteDialog
+          collection={collection.name}
+          slug={toDelete.slug}
+          title={toDelete.title}
+          state={toDelete.state}
+          locked={Boolean(
+            collection.specialSlugLocked?.includes(toDelete.slug),
+          )}
+          onClose={() => setToDelete(null)}
+          onDone={(message) => {
+            setToDelete(null);
+            setNotice(message);
+            setReload((n) => n + 1);
+          }}
+        />
+      ) : null}
     </>
   );
 }

@@ -112,6 +112,15 @@ export const publishDraft = (
     `/api/publish/${encodeURIComponent(collection)}/${encodeURIComponent(slug)}`,
     { method: "POST", body: JSON.stringify({ overwrite }) },
   );
+export const deleteEntry = (
+  collection: string,
+  slug: string,
+  scope: "draft" | "all",
+) =>
+  api<{ ok: true; commitUrl?: string }>(
+    `/api/content/${encodeURIComponent(collection)}/${encodeURIComponent(slug)}?scope=${scope}`,
+    { method: "DELETE" },
+  );
 export const uploadMedia = (payload: {
   collection: string;
   slug: string;
