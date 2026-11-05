@@ -359,7 +359,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
   }
 
   function handlePreparedImage(upload: PreparedUpload) {
-    if (!effectiveSlug || !isValidSlug(effectiveSlug)) {
+    if (!effectiveSlug || (isNew && !isValidSlug(effectiveSlug))) {
       setNotice(
         "Add a valid title so the image path can be created before inserting images.",
       );
@@ -383,7 +383,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
     options: { silent?: boolean } = {},
   ): Promise<{ slug: string } | null> {
     const targetSlug = isNew ? (createdSlug ?? effectiveSlug) : slugParam;
-    if (!targetSlug || !isValidSlug(targetSlug)) {
+    if (!targetSlug || (isNew && !isValidSlug(targetSlug))) {
       setFieldErrors({
         slug: "Enter a valid title so a slug can be generated.",
       });
@@ -564,7 +564,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
           <div className="toolbar" style={{ gap: "0.35rem" }}>
             <StateBadge state={entryState} />
             <span className="badge">
-              {source === "draft" ? "Editing draft" : "Live source"}
+              {source === "draft" ? "Unpublished changes" : "Live version"}
             </span>
             {slugParam !== "new" ? (
               <code className="badge">{slugParam}</code>

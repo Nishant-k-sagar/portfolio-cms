@@ -16,14 +16,35 @@ export function normalizeRepoPath(path: string): string {
   return parts.filter(Boolean).join("/");
 }
 
+// Existing files may predate the slug rules (for example "Android-studio" with a capital letter).
+// They must stay openable, so the path guard only demands a safe single file name: letters,
+// digits, "-" and "_", no dots and no slashes. Creating a NEW entry is held to the strict rule by
+// assertNewSlug below.
+const SAFE_EXISTING_SLUG = /^[A-Za-z0-9][A-Za-z0-9_-]{0,119}$/;
+
 export function assertSlugParam(slug: string): string {
+  if (!SAFE_EXISTING_SLUG.test(slug)) {
+    throw new HttpError(
+      400,
+      "validation_failed",
+      "That is not a valid entry name.",
+      {
+        slug: "Invalid slug.",
+      },
+    );
+  }
+  return slug;
+}
+
+/** Strict rule for brand-new entries: lowercase ASCII words separated by single hyphens. */
+export function assertNewSlug(slug: string): string {
   if (!isValidSlug(slug)) {
     throw new HttpError(
       400,
       "validation_failed",
       "Slug must be lowercase ASCII words separated by single hyphens.",
       {
-        slug: "Invalid slug.",
+        slug: "Use lowercase letters, numbers and single hyphens.",
       },
     );
   }

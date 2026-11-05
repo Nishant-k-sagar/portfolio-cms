@@ -1,6 +1,5 @@
 import config from "../../cms.config";
 import { parseFrontmatter, serializeMarkdown } from "../../shared/frontmatter";
-import { isValidSlug } from "../../shared/slug";
 import { validateFields } from "../../shared/validation";
 import type {
   CollectionConfig,
@@ -18,6 +17,7 @@ import {
 import { HttpError } from "./http";
 import {
   assertMediaPath,
+  assertNewSlug,
   assertSlugParam,
   contentPath,
   mediaPrefix,
@@ -200,10 +200,17 @@ export async function saveDraft(
     paths.contentPath,
     config.repo.branch,
   );
-  const existingDraft = await client.getFileIfExists(
-    paths.contentPath,
+  // The drafts branch starts as a copy of the whole repo, so a file there is only a real draft
+  // when its metadata file exists too.
+  const metadata = await readJsonFile<DraftMetadata>(
+    client,
+    paths.metadataPath,
     config.repo.draftsBranch,
   );
+  const existingDraft = metadata
+    ? await client.getFileIfExists(paths.contentPath, config.repo.draftsBranch)
+    : null;
+  if (!mainFile && !existingDraft) assertNewSlug(slug);
   if (
     input.expectedDraftSha !== undefined &&
     (existingDraft?.sha ?? null) !== input.expectedDraftSha
@@ -215,11 +222,6 @@ export async function saveDraft(
     );
   }
 
-  const metadata = await readJsonFile<DraftMetadata>(
-    client,
-    paths.metadataPath,
-    config.repo.draftsBranch,
-  );
   const baseSha = metadata?.baseSha ?? mainFile?.sha ?? "";
   const savedAt = new Date().toISOString();
   const markdown = serializeMarkdown(validation.data, input.body, collection);
@@ -356,8 +358,11 @@ function summarizeCollection(
   metaFiles: FolderFile[],
 ): EntrySummary[] {
   const mainMap = byBaseName(mainFiles, ".md");
-  const draftMap = byBaseName(draftFiles, ".md");
   const metaMap = byBaseName(metaFiles, ".json");
+  // Ignore leftover copies on the drafts branch: only entries with draft metadata are drafts.
+  const draftMap = new Map(
+    [...byBaseName(draftFiles, ".md")].filter(([slug]) => metaMap.has(slug)),
+  );
   const summaries: EntrySummary[] = [];
   for (const slug of new Set([...mainMap.keys(), ...draftMap.keys()])) {
     const main = mainMap.get(slug);
@@ -409,29 +414,24 @@ export async function getEntry(
   const slug = assertSlugParam(slugParam);
   const path = contentPath(collection.name, slug);
   const client = new GitHubClient(env);
+  const draftMeta = await readJsonFile<DraftMetadata>(
+    client,
+    metadataPath(collection.name, slug),
+    config.repo.draftsBranch,
+  );
   const chosenSource =
     source === "draft" || source === "main"
       ? source
-      : await (async () => {
-          const draft = await client
-            .getFileIfExists(path, config.repo.draftsBranch)
-            .catch(() => null);
-          return draft ? "draft" : "main";
-        })();
+      : draftMeta
+        ? "draft"
+        : "main";
 
   const file = await client.getFileIfExists(
     path,
     chosenSource === "draft" ? config.repo.draftsBranch : config.repo.branch,
   );
   if (!file) throw new HttpError(404, "not_found", "Entry was not found.");
-  const meta =
-    chosenSource === "draft"
-      ? await readJsonFile<DraftMetadata>(
-          client,
-          metadataPath(collection.name, slug),
-          config.repo.draftsBranch,
-        )
-      : null;
+  const meta = chosenSource === "draft" ? draftMeta : null;
   const parsed = parseFrontmatter(base64ToUtf8(file.content));
   let state: EntryState = "published";
   if (chosenSource === "draft") {
@@ -480,6 +480,7 @@ export async function publishEntry(
   const draftFile = await client.getFileIfExists(path, draftBranch);
   if (!draftFile) throw new HttpError(404, "not_found", "Draft was not found.");
   const meta = await readJsonFile<DraftMetadata>(client, metaPath, draftBranch);
+  if (!meta) throw new HttpError(404, "not_found", "Draft was not found.");
 
   const parsed = parseFrontmatter(base64ToUtf8(draftFile.content));
   const validation = validateFields(collection, parsed.data, "publish");
@@ -491,17 +492,12 @@ export async function publishEntry(
       validation.errors,
     );
   }
-  if (!isValidSlug(slug)) {
-    throw new HttpError(400, "validation_failed", "Invalid slug.", {
-      slug: "Invalid slug.",
-    });
-  }
-
   await assertSlugUnique(client, collection, slug, path);
 
   const mainRef = await client.getRef(config.repo.branch);
   const mainCommit = await client.getCommit(mainRef.object.sha);
   const mainFile = await client.getFileIfExists(path, config.repo.branch);
+  if (!mainFile) assertNewSlug(slug);
   const baseSha = meta?.baseSha ?? "";
   if (mainFile && !overwrite) {
     if (!baseSha || mainFile.sha !== baseSha) {

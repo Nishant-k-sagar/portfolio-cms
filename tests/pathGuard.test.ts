@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   assertMediaPath,
+  assertNewSlug,
+  assertSlugParam,
   contentPath,
   metadataPath,
   normalizeRepoPath,
@@ -38,5 +40,29 @@ describe("path guard", () => {
       HttpError,
     );
     expect(sanitizeMediaFileName("My Photo!!.JPEG")).toBe("my-photo.jpg");
+  });
+
+  it("lets existing files with legacy names open, but blocks path tricks", () => {
+    expect(assertSlugParam("andro-goat-and-Android-studio")).toBe(
+      "andro-goat-and-Android-studio",
+    );
+    for (const bad of [
+      "../x",
+      "a/b",
+      "a.b",
+      ".hidden",
+      "",
+      "a b",
+      "x" + "\\" + "y",
+    ]) {
+      expect(() => assertSlugParam(bad)).toThrow(HttpError);
+    }
+  });
+
+  it("holds brand-new entries to the strict slug rule", () => {
+    expect(assertNewSlug("good-slug-2")).toBe("good-slug-2");
+    expect(() => assertNewSlug("Android-studio")).toThrow(HttpError);
+    expect(() => assertNewSlug("double--hyphen")).toThrow(HttpError);
+    expect(() => assertNewSlug("under_score")).toThrow(HttpError);
   });
 });

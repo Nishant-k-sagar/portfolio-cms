@@ -23,6 +23,11 @@ const trees: Record<string, Tree> = {
       text: post("Legacy", "2025-01-01"),
       oid: "sha-legacy",
     },
+    {
+      name: "stale.md",
+      text: post("Stale (current)", "2026-03-03"),
+      oid: "sha-stale-main",
+    },
   ],
   "cms-drafts:src/content/blog": [
     {
@@ -35,8 +40,22 @@ const trees: Record<string, Tree> = {
       text: post("Brand new", "2026-02-02"),
       oid: "sha-new",
     },
+    // Leftover copy from when the branch was created: no metadata, so it is NOT a draft.
+    {
+      name: "stale.md",
+      text: post("Stale (old copy)", "2026-03-03"),
+      oid: "sha-stale-old",
+    },
   ],
   "cms-drafts:.cms/blog": [
+    {
+      name: "alpha.json",
+      text: JSON.stringify({
+        baseSha: "sha-alpha-main",
+        savedAt: "2026-02-03T10:00:00.000Z",
+      }),
+      oid: "sha-meta-alpha",
+    },
     {
       name: "brand-new.json",
       text: JSON.stringify({
@@ -110,5 +129,15 @@ describe("listEntries", () => {
     const legacy = blog.find((e) => e.slug === "Legacy-Name");
     expect(legacy?.title).toBe("Legacy");
     expect(legacy?.state).toBe("published");
+  });
+
+  it("ignores stale copies on the drafts branch that have no draft metadata", async () => {
+    stubGitHub();
+    const blog = await listEntries(env, "blog");
+    const stale = blog.find((e) => e.slug === "stale");
+    expect(stale?.state).toBe("published");
+    // It must show the current live text, not the old leftover copy.
+    expect(stale?.title).toBe("Stale (current)");
+    expect(stale?.draftSha).toBeUndefined();
   });
 });
