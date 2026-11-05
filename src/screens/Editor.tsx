@@ -249,6 +249,26 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
     return createdSlug ?? slugify(String(fields.title ?? ""));
   }, [isNew, slugParam, fields.title, createdSlug]);
 
+  // Ctrl/Cmd+S saves the draft from any field. Refs keep the handler pointing at the latest state.
+  const saveRef = useRef<() => void>(() => undefined);
+  saveRef.current = () => {
+    if (!saving && !publishing) void persistDraft();
+  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        event.key.toLowerCase() === "s"
+      ) {
+        event.preventDefault();
+        saveRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   // Restore the caret after a toolbar or shortcut edit has been rendered.
   useEffect(() => {
     const selection = pendingSelection.current;
@@ -326,10 +346,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
   function handleEditorKeyDown(event: KeyboardEvent) {
     if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
     const key = event.key.toLowerCase();
-    if (key === "s") {
-      event.preventDefault();
-      if (!saving && !publishing) void persistDraft();
-    } else if (key === "b") {
+    if (key === "b") {
       event.preventDefault();
       runAction("bold");
     } else if (key === "i") {
