@@ -73,6 +73,7 @@ export interface EntrySummary {
   slug: string;
   title: string;
   date?: string;
+  start?: string;
   status?: string;
   state: EntryState;
   updatedAt?: string;

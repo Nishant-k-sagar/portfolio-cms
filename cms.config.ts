@@ -178,8 +178,8 @@ const config = {
       label: "Pages",
       folder: "src/content/pages",
       filename: "{{slug}}.md",
-      sort: { field: "title", order: "asc" },
-      listFields: ["title", "state"],
+      sort: { field: "start", order: "desc" },
+      listFields: ["title", "start", "state"],
       specialSlugLocked: ["now", "about"],
       fields: [
         {
