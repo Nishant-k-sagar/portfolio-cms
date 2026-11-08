@@ -10,7 +10,7 @@ A small, Git-backed CMS for the `Nishant-k-sagar/nishant-k-sagar.github.io` port
 - Config-driven collections and fields (`cms.config.ts`): `blog`, `projects`, `pages`, `timeline`, `skills`, `socials`, `home`, `experience`.
 - Editor with markdown toolbar, preview tab, autosave to local storage, word count, reading time and unsaved-changes warning.
 - Browser-side image preparation for PNG/JPG (resize to 1600 px and re-encode to WebP when smaller). SVG, GIF and WebP keep their format.
-- No delete API or UI. Unwanted entries are hidden by publishing with `status: "archived"`, or removed in Git manually.
+- Delete: drafts can be discarded and published entries removed from the live site, each with a confirmation. Entries can also be hidden by publishing with `status: "archived"`.
 
 ## Repository layout
 
@@ -124,7 +124,6 @@ If you run the command from another directory, use the absolute path. The test f
 
 ## Known limits
 
-- No delete API or UI by design.
 - Pull request review mode is not included.
 - The portfolio repository is not bundled with this project; it remains a separate repository.
 - The strict schema contract test is opt-in because the portfolio checkout location varies by machine.
