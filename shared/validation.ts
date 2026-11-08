@@ -137,7 +137,7 @@ function validateField(
     }
     case "month": {
       const text = monthToYm(value);
-      if (!text || !isRealMonth(text)) {
+      if (!text) {
         errors[field.name] =
           `${label} must be a real month in YYYY-MM format, e.g. 2024-01.`;
         return undefined;
@@ -235,6 +235,16 @@ export function validateFields(
   if (slugOverride && !isValidSlug(slugOverride)) {
     errors.slug =
       "Slug must be lowercase ASCII words separated by single hyphens.";
+  }
+
+  if (
+    typeof data.start === "string" &&
+    typeof data.end === "string" &&
+    !errors.start &&
+    !errors.end &&
+    data.end < data.start
+  ) {
+    errors.end = "End month cannot be before the start month.";
   }
 
   for (const key of unknownFields) {

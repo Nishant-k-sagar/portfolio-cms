@@ -135,6 +135,25 @@ describe("validateFields: experience", () => {
     }
   });
 
+  it("rejects an end month before the start month", () => {
+    const base = { title: "SE", company: "Acme", status: "published" };
+    const bad = validateFields(
+      experience,
+      { ...base, start: "2024-06", end: "2024-01" },
+      "publish",
+    );
+    expect(bad.success).toBe(false);
+    expect(bad.errors.end).toBeTruthy();
+    for (const [start, end] of [
+      ["2024-06", "2024-06"],
+      ["2024-06", "2025-01"],
+    ]) {
+      expect(
+        validateFields(experience, { ...base, start, end }, "publish").success,
+      ).toBe(true);
+    }
+  });
+
   it("requires title and company at publish time", () => {
     const result = validateFields(
       experience,
