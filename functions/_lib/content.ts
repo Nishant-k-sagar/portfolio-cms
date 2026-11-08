@@ -392,6 +392,7 @@ function summarizeCollection(
       slug,
       title: String(data.title ?? slug),
       date: typeof data.date === "string" ? data.date : undefined,
+      start: typeof data.start === "string" ? data.start : undefined,
       status: typeof data.status === "string" ? data.status : undefined,
       state,
       updatedAt: meta?.savedAt,

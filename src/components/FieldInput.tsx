@@ -126,11 +126,13 @@ export function FieldInput({ field, value, error, onChange }: Props) {
   const inputType =
     field.type === "date"
       ? "date"
-      : field.type === "number"
-        ? "number"
-        : field.type === "url"
-          ? "url"
-          : "text";
+      : field.type === "month"
+        ? "month"
+        : field.type === "number"
+          ? "number"
+          : field.type === "url"
+            ? "url"
+            : "text";
   const textValue = String(value ?? "");
 
   return (

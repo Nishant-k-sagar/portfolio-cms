@@ -9,6 +9,9 @@ import {
 const blog = config.collections.find(
   (collection) => collection.name === "blog",
 )!;
+const experience = config.collections.find(
+  (collection) => collection.name === "experience",
+)!;
 
 describe("frontmatter", () => {
   it("serializes with fixed key order and quoted dates", () => {
@@ -70,5 +73,27 @@ describe("frontmatter", () => {
     expect(serialized).toContain('date: "2024-10-01"');
     expect(serialized).toContain("pinned: true");
     expect(serialized.endsWith("Body text.\n")).toBe(true);
+  });
+
+  it("serializes experience months as quoted strings and round-trips them", () => {
+    const output = serializeFrontmatter(
+      {
+        title: "Software Engineer",
+        company: "Docstribe AI",
+        start: "2024-01",
+        end: "2024-12",
+        order: 1,
+        status: "published",
+      },
+      experience,
+    );
+    // Quoted so YAML keeps them strings for the portfolio's monthString refine.
+    expect(output).toContain('start: "2024-01"');
+    expect(output).toContain('end: "2024-12"');
+    const parsed = parseFrontmatter(output);
+    expect(parsed.data.start).toBe("2024-01");
+    expect(parsed.data.end).toBe("2024-12");
+    const again = serializeFrontmatter(parsed.data, experience);
+    expect(again).toBe(output);
   });
 });

@@ -9,6 +9,8 @@ function sampleFor(field: FieldConfig): FieldValue {
   switch (field.type) {
     case "date":
       return "2024-10-01";
+    case "month":
+      return "2024-10";
     case "boolean":
       return false;
     case "number":

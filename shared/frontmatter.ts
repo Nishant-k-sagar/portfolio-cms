@@ -8,6 +8,7 @@ export interface ParsedMarkdown {
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 const DATE_LIKE = /^\d{4}-\d{2}-\d{2}$/;
+const MONTH_LIKE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -24,6 +25,17 @@ export function dateToYmd(value: unknown): string | undefined {
     if (!Number.isNaN(parsed.getTime())) {
       return `${parsed.getUTCFullYear()}-${pad2(parsed.getUTCMonth() + 1)}-${pad2(parsed.getUTCDate())}`;
     }
+  }
+  return undefined;
+}
+
+export function monthToYm(value: unknown): string | undefined {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getUTCFullYear()}-${pad2(value.getUTCMonth() + 1)}`;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (MONTH_LIKE.test(trimmed)) return trimmed;
   }
   return undefined;
 }
