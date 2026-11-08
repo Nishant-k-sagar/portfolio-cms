@@ -1,10 +1,11 @@
 import { z } from "zod";
 import config from "../cms.config";
-import { dateToYmd } from "./frontmatter";
+import { dateToYmd, monthToYm } from "./frontmatter";
 import { isValidSlug } from "./slug";
 import type { CollectionConfig, FieldConfig, FieldValue } from "./types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export function isRealDate(value: string): boolean {
   if (!DATE_RE.test(value)) return false;
@@ -15,6 +16,10 @@ export function isRealDate(value: string): boolean {
     date.getUTCMonth() === month - 1 &&
     date.getUTCDate() === day
   );
+}
+
+export function isRealMonth(value: string): boolean {
+  return MONTH_RE.test(value);
 }
 
 export function todayYmd(): string {
@@ -126,6 +131,15 @@ function validateField(
       if (!text || !isRealDate(text)) {
         errors[field.name] =
           `${label} must be a real date in YYYY-MM-DD format.`;
+        return undefined;
+      }
+      return text;
+    }
+    case "month": {
+      const text = monthToYm(value);
+      if (!text || !isRealMonth(text)) {
+        errors[field.name] =
+          `${label} must be a real month in YYYY-MM format, e.g. 2024-01.`;
         return undefined;
       }
       return text;
@@ -258,4 +272,5 @@ export const fieldSchemas = {
   string: z.string(),
   url: z.string().url(),
   date: z.string().regex(DATE_RE).refine(isRealDate),
+  month: z.string().regex(MONTH_RE).refine(isRealMonth),
 };

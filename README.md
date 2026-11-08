@@ -7,7 +7,7 @@ A small, Git-backed CMS for the `Nishant-k-sagar/nishant-k-sagar.github.io` port
 - GitHub OAuth sign-in with an allow-list. Only configured GitHub logins can use the admin.
 - Drafts saved to a dedicated `cms-drafts` branch with optimistic concurrency and base-SHA metadata for publish conflict detection.
 - Explicit publish flow: validate strictly, detect conflicts against `main`, commit atomically, clean up the draft, then show the latest GitHub Actions deploy run.
-- Config-driven collections and fields (`cms.config.ts`): `blog`, `projects`, `pages`, `timeline`.
+- Config-driven collections and fields (`cms.config.ts`): `blog`, `projects`, `pages`, `timeline`, `skills`, `socials`, `home`, `experience`.
 - Editor with markdown toolbar, preview tab, autosave to local storage, word count, reading time and unsaved-changes warning.
 - Browser-side image preparation for PNG/JPG (resize to 1600 px and re-encode to WebP when smaller). SVG, GIF and WebP keep their format.
 - No delete API or UI. Unwanted entries are hidden by publishing with `status: "archived"`, or removed in Git manually.

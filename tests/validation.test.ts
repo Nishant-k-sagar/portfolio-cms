@@ -3,6 +3,7 @@ import config from "../cms.config";
 import {
   getCollection,
   isRealDate,
+  isRealMonth,
   validateFields,
 } from "../shared/validation";
 
@@ -19,6 +20,17 @@ describe("isRealDate", () => {
     expect(isRealDate("2024-02-29")).toBe(true);
     expect(isRealDate("2023-02-29")).toBe(false);
     expect(isRealDate("2024-13-01")).toBe(false);
+  });
+});
+
+describe("isRealMonth", () => {
+  it("accepts YYYY-MM months and rejects bad months and full dates", () => {
+    expect(isRealMonth("2024-01")).toBe(true);
+    expect(isRealMonth("2024-12")).toBe(true);
+    expect(isRealMonth("2024-13")).toBe(false);
+    expect(isRealMonth("2024-00")).toBe(false);
+    expect(isRealMonth("2024-01-01")).toBe(false);
+    expect(isRealMonth("2024-1")).toBe(false);
   });
 });
 
@@ -76,6 +88,63 @@ describe("validateFields", () => {
     );
     expect(result.data.status).toBe("published");
   });
+
+  it("treats cover as a known field, not an unknown field", () => {
+    const result = validateFields(
+      blog,
+      { ...validBlog, cover: "/images/cover.webp" },
+      "publish",
+    );
+    expect(result.success).toBe(true);
+    expect(result.data.cover).toBe("/images/cover.webp");
+    expect(result.unknownFields).not.toContain("cover");
+  });
+});
+
+describe("validateFields: experience", () => {
+  const experience = getCollection("experience");
+
+  it("validates month fields and rejects full dates and bad months", () => {
+    const valid = validateFields(
+      experience,
+      {
+        title: "Software Engineer",
+        company: "Docstribe AI",
+        start: "2024-01",
+        end: "2024-12",
+        status: "published",
+      },
+      "publish",
+    );
+    expect(valid.success).toBe(true);
+    expect(valid.data.start).toBe("2024-01");
+
+    for (const bad of ["2024-13", "2024-00", "2024-01-01", "2024-1"]) {
+      const result = validateFields(
+        experience,
+        {
+          title: "Software Engineer",
+          company: "Docstribe AI",
+          start: bad,
+          status: "published",
+        },
+        "publish",
+      );
+      expect(result.success).toBe(false);
+      expect(result.errors.start).toBeTruthy();
+    }
+  });
+
+  it("requires title and company at publish time", () => {
+    const result = validateFields(
+      experience,
+      { status: "published" },
+      "publish",
+    );
+    expect(result.success).toBe(false);
+    expect(result.errors.title).toBeTruthy();
+    expect(result.errors.company).toBeTruthy();
+  });
 });
 
 describe("config collections", () => {
@@ -88,6 +157,7 @@ describe("config collections", () => {
       "skills",
       "socials",
       "home",
+      "experience",
     ]);
   });
 });

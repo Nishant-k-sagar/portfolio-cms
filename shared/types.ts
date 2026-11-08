@@ -2,6 +2,7 @@ export type FieldType =
   | "string"
   | "text"
   | "date"
+  | "month"
   | "boolean"
   | "number"
   | "select"
