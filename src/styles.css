@@ -117,6 +117,7 @@ button:disabled {
 }
 
 .app-shell {
+  min-height: 100vh;
   min-height: 100dvh;
 }
 
@@ -389,6 +390,37 @@ tr:last-child td {
   gap: 0.5rem;
 }
 
+/* Dashboard "latest drafts" rows: title/meta beside the state badge, wrapping
+   cleanly on phones so the badge is never squeezed. */
+.row-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.35rem 1rem;
+}
+
+.row-item > span {
+  min-width: 0;
+}
+
+/* Settings read-only metadata list. */
+.panel dt {
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.panel dt + dd {
+  margin: 0.1rem 0 0.6rem;
+}
+
+.panel dd {
+  margin: 0.1rem 0;
+}
+
 .editor-tabs {
   display: flex;
   gap: 0.35rem;
@@ -398,6 +430,29 @@ tr:last-child td {
 .prose {
   max-width: 72ch;
   color: var(--text);
+}
+
+/* Preview images must never overflow the column on narrow screens. */
+.prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+}
+
+/* Code should read as code, not as serif body text. */
+.prose pre,
+.prose code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.prose pre {
+  font-size: 0.9rem;
+}
+
+/* Long bare URLs in links and code wrap instead of forcing horizontal scroll. */
+.prose a,
+.prose code {
+  overflow-wrap: anywhere;
 }
 
 .prose pre {
@@ -431,6 +486,7 @@ tr:last-child td {
 
 .modal {
   width: min(720px, 100%);
+  max-height: 90vh;
   max-height: 90dvh;
   overflow: auto;
   background: var(--panel);
@@ -509,6 +565,20 @@ tr:last-child td {
 /* Keep the caret clear of the sticky save bar when the browser scrolls it into view. */
 html {
   scroll-padding-bottom: 6rem;
+  /* Stop iOS Safari from growing text on orientation change. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Long slugs, paths and hashes wrap instead of stretching rows on narrow screens. */
+code {
+  overflow-wrap: break-word;
+}
+
+/* Visible, on-brand checked state for checkboxes and radios. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
 }
 
 .prose .mermaid-diagram {
@@ -537,7 +607,6 @@ html {
 
   .input,
   .select,
-  .textarea,
   .nav a {
     min-height: 44px;
   }
@@ -549,14 +618,18 @@ html {
     font-size: max(1rem, 16px);
   }
 
-  /* Headers can hold long entry titles plus a trailing action button. */
-  .page-header {
+  /* Headers can hold long entry titles plus a trailing action button.
+     Scoped to top-level page headers so dialog headers keep their compact
+     title + Close row. */
+  .main > .page-header {
     flex-wrap: wrap;
     align-items: start;
   }
 
-  .page-header > .button {
+  .main > .page-header > .button,
+  .main > .page-header > button {
     order: 2;
+    flex: 1 1 100%;
   }
 
   /* The save/publish bar stacks, and buttons widen to the full row. */
@@ -570,7 +643,6 @@ html {
 
   .sticky-actions-buttons {
     width: 100%;
-    justify-content: stretch;
   }
 
   .sticky-actions-buttons button {
@@ -595,6 +667,40 @@ html {
 
   .editor-layout {
     gap: 0.75rem;
+  }
+
+  /* Bigger check targets in metadata boolean fields. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  /* Affordance: the dialog is a draggable sheet. */
+  .modal::before {
+    content: "";
+    display: block;
+    width: 3rem;
+    height: 4px;
+    margin: 0 auto 0.75rem;
+    border-radius: 999px;
+    background: var(--border);
+  }
+
+  .modal-backdrop {
+    place-items: end stretch;
+    padding: 0;
+  }
+
+  /* Full-width bottom sheet with the home-indicator clearance built in. */
+  .modal {
+    width: 100%;
+    max-width: none;
+    max-height: 92vh;
+    max-height: 92dvh;
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
   }
 }
 
