@@ -36,6 +36,23 @@
   box-sizing: border-box;
 }
 
+/* Remove the 300 ms tap delay on touch devices. */
+button,
+a,
+.button,
+summary,
+label,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+/* body scroll lock while a dialog is open (set from src/lib/useModal.ts). */
+body.modal-open {
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -354,6 +371,24 @@ tr:last-child td {
   margin-top: 1rem;
 }
 
+.sticky-actions-buttons {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.toolbar-search {
+  max-width: 20rem;
+}
+
+/* Media picker rows: long paths wrap instead of pushing the Insert button away. */
+.media-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .editor-tabs {
   display: flex;
   gap: 0.35rem;
@@ -396,12 +431,19 @@ tr:last-child td {
 
 .modal {
   width: min(720px, 100%);
-  max-height: 90vh;
+  max-height: 90dvh;
   overflow: auto;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1rem;
+  /* Keep the backdrop from scrolling the page behind it. */
+  overscroll-behavior: contain;
+}
+
+/* Long asset paths and slugs should wrap instead of forcing horizontal scroll. */
+.modal code {
+  overflow-wrap: anywhere;
 }
 
 .skip-link {
@@ -442,8 +484,19 @@ tr:last-child td {
     flex-direction: column;
   }
 
+  /* A horizontal scrolling nav strip keeps the header short on phones with
+     many collections (wrap would stack links into two tall rows). */
   .nav {
     margin-left: 0;
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -467,4 +520,104 @@ html {
 .prose .mermaid-diagram svg {
   max-width: 100%;
   height: auto;
+}
+
+/*
+ * Phone refinements (portrait handsets, roughly <= 640 px).
+ * These come last so they override the tablet rules above where needed.
+ */
+@media (max-width: 640px) {
+  /* Apple's minimum comfortable touch target is 44 px. */
+  button,
+  .button,
+  .nav a,
+  .details summary {
+    min-height: 44px;
+  }
+
+  .input,
+  .select,
+  .textarea,
+  .nav a {
+    min-height: 44px;
+  }
+
+  /* 16 px body text on form controls stops iOS Safari auto-zooming on focus. */
+  input,
+  select,
+  textarea {
+    font-size: max(1rem, 16px);
+  }
+
+  /* Headers can hold long entry titles plus a trailing action button. */
+  .page-header {
+    flex-wrap: wrap;
+    align-items: start;
+  }
+
+  .page-header > .button {
+    order: 2;
+  }
+
+  /* The save/publish bar stacks, and buttons widen to the full row. */
+  .sticky-actions {
+    flex-direction: column;
+    align-items: stretch;
+    /* Clear the iOS home indicator. */
+    bottom: calc(0.5rem + env(safe-area-inset-bottom));
+    margin-top: 0.75rem;
+  }
+
+  .sticky-actions-buttons {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .sticky-actions-buttons button {
+    flex: 1 1 12rem;
+  }
+
+  .toolbar-search {
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  /* Stat cards read better two-up than one per full-width row. */
+  .grid.cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hero,
+  .panel,
+  .card {
+    padding: 0.85rem;
+  }
+
+  .editor-layout {
+    gap: 0.75rem;
+  }
+}
+
+/* Very narrow screens: give the word count its own line under the editor tabs. */
+@media (max-width: 480px) {
+  .editor-tabs {
+    flex-wrap: wrap;
+  }
+
+  .editor-tabs .editor-stats {
+    width: 100%;
+    margin-left: 0 !important;
+    order: 9;
+  }
+}
+
+/* Landscape phones (or any short viewport): keep dialogs fully visible. */
+@media (max-height: 480px) {
+  .modal {
+    max-height: 94dvh;
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
 }

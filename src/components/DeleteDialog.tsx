@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import type { EntryState } from "../../shared/types";
 import { deleteEntry } from "../lib/api";
+import { useModal } from "../lib/useModal";
 
 /**
  * Delete confirmation. Which choices appear depends on where the entry exists:
@@ -29,6 +30,11 @@ export function DeleteDialog({
   const [error, setError] = useState("");
   const live = state !== "draft";
   const hasDraft = state !== "published";
+
+  // Deleting is destructive: ignore Escape while a request is in flight.
+  useModal(() => {
+    if (!busy) onClose();
+  });
 
   const run = async (scope: "draft" | "all") => {
     setBusy(true);

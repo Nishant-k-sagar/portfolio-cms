@@ -88,8 +88,7 @@ export function CollectionList({
         </label>
         <input
           id="search-entries"
-          className="input"
-          style={{ maxWidth: 320 }}
+          className="input toolbar-search"
           type="search"
           value={query}
           onInput={(event) => setQuery(event.currentTarget.value)}

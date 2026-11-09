@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { prepareImage, type PreparedImage } from "../lib/images";
+import { useModal } from "../lib/useModal";
 
 export interface PreparedUpload {
   image: PreparedImage;
@@ -28,17 +29,15 @@ export function MediaPicker({
   const [message, setMessage] = useState("");
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  useModal(onClose, open);
+
+  // Focus the first control so keyboard users land inside the dialog.
   useEffect(() => {
     if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
     dialogRef.current
       ?.querySelector<HTMLElement>("input,button,select,textarea")
       ?.focus();
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -182,15 +181,7 @@ export function MediaPicker({
               }}
             >
               {existingPaths.map((path) => (
-                <li
-                  key={path}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "0.5rem",
-                    alignItems: "center",
-                  }}
-                >
+                <li key={path} className="media-item">
                   <code>{path}</code>
                   <button type="button" onClick={() => insertExisting(path)}>
                     Insert
