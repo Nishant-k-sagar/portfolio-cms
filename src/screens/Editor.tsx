@@ -114,6 +114,11 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
     null,
   );
   const [tab, setTab] = useState<"edit" | "preview">("edit");
+  // On phones the single-column layout puts metadata above the writing
+  // surface, so start collapsed there and let the author open it on demand.
+  const [metadataOpen] = useState(
+    () => !window.matchMedia("(max-width: 900px)").matches,
+  );
   const [mediaOpen, setMediaOpen] = useState(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [existingPaths, setExistingPaths] = useState<string[]>(() =>
@@ -703,7 +708,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
 
       <div className="editor-layout">
         <aside>
-          <details className="details" open>
+          <details className="details" open={metadataOpen}>
             <summary>Metadata</summary>
             <div className="grid" style={{ marginTop: "0.75rem" }}>
               {isNew && !locked ? (

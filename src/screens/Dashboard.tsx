@@ -104,15 +104,7 @@ export function Dashboard({ config }: { config: PublicConfig }) {
               }}
             >
               {latestDrafts.map((draft) => (
-                <li
-                  key={`${draft.collection}/${draft.slug}`}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "1rem",
-                    alignItems: "center",
-                  }}
-                >
+                <li key={`${draft.collection}/${draft.slug}`} className="row-item">
                   <span>
                     <strong>{draft.title}</strong>
                     <br />
