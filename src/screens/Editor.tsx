@@ -23,6 +23,7 @@ import { navigate } from "../app/App";
 import { DeleteDialog } from "../components/DeleteDialog";
 import { StateBadge } from "../components/StateBadge";
 import { Toolbar } from "../components/Toolbar";
+import { useModal } from "../lib/useModal";
 import {
   applyAction,
   type Edit,
@@ -791,7 +792,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
               Preview
             </button>
             <span
-              className="muted"
+              className="muted editor-stats"
               style={{ marginLeft: "auto", alignSelf: "center" }}
             >
               {stats.words} words · about {stats.minutes} min read
@@ -837,7 +838,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
                 </span>
               ) : null}
             </div>
-            <div className="toolbar" style={{ flexWrap: "nowrap" }}>
+            <div className="toolbar sticky-actions-buttons">
               <button
                 type="button"
                 className="primary"
@@ -979,6 +980,7 @@ function Modal({
   children: preact.ComponentChildren;
   onClose: () => void;
 }) {
+  useModal(onClose);
   return (
     <div
       className="modal-backdrop"

@@ -46,8 +46,7 @@ export function Drafts() {
         </label>
         <input
           id="draft-search"
-          className="input"
-          style={{ maxWidth: 360 }}
+          className="input toolbar-search"
           type="search"
           value={query}
           onInput={(event) => setQuery(event.currentTarget.value)}
