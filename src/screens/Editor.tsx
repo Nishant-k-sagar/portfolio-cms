@@ -776,6 +776,15 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
               </ul>
             </section>
           ) : null}
+
+          {collection.name === "home" ? (
+            <IntroPhotoSlot
+              body={body}
+              pendingImages={pendingImages}
+              siteUrl={config.siteUrl}
+              onInsert={() => setMediaOpen(true)}
+            />
+          ) : null}
         </aside>
 
         <section className="panel" aria-label="Markdown editor">
@@ -1004,5 +1013,122 @@ function Modal({
         {children}
       </div>
     </div>
+  );
+}
+
+const INTRO_IMAGE_PATTERN = /!\[([^\]\n]*)\]\(([^)]+)\)/;
+
+function extractIntroImage(
+  body: string,
+): { alt: string; path: string } | null {
+  const match = INTRO_IMAGE_PATTERN.exec(body);
+  if (!match) return null;
+  // The URL may carry an optional `title` after the path inside the parens.
+  const path = match[2].trim().split(/\s+/)[0];
+  if (!path) return null;
+  return { alt: match[1].trim(), path };
+}
+
+interface IntroPhotoProps {
+  body: string;
+  pendingImages: PendingImage[];
+  siteUrl: string;
+  onInsert: () => void;
+}
+
+/**
+ * The home page renders the intro text with a photo beside it. This panel keeps
+ * that slot visible in the editor: a dashed placeholder while the intro has no
+ * image yet, then a live preview — straight from the queued file before it is
+ * committed, and from the published site afterwards.
+ */
+function IntroPhotoSlot({
+  body,
+  pendingImages,
+  siteUrl,
+  onInsert,
+}: IntroPhotoProps) {
+  const [failed, setFailed] = useState(false);
+  const found = useMemo(() => extractIntroImage(body), [body]);
+  // The most recently queued image previews immediately, before any commit.
+  const pending =
+    pendingImages.length > 0 ? pendingImages[pendingImages.length - 1] : null;
+  const objectUrl = useMemo(
+    () => (pending ? URL.createObjectURL(pending.image.blob) : null),
+    [pending],
+  );
+  useEffect(() => {
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [objectUrl]);
+
+  const queuedSrc = objectUrl;
+  const publishedSrc =
+    found && found.path.startsWith("/") ? `${siteUrl}${found.path}` : null;
+  const externalSrc =
+    found && /^https?:\/\//i.test(found.path) ? found.path : null;
+  const src = queuedSrc ?? publishedSrc ?? externalSrc;
+
+  // A published path can 404 until the draft is published; fall back to the
+  // placeholder so the slot never shows a broken image.
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  const previewAlt = queuedSrc
+    ? (pending?.alt ?? "Queued intro photo")
+    : (found?.alt ?? "Intro photo");
+
+  return (
+    <section className="panel intro-photo" aria-labelledby="intro-photo-title">
+      <h2 id="intro-photo-title">Intro photo</h2>
+      {src && !failed ? (
+        <>
+          <img
+            className="intro-photo-preview"
+            src={src}
+            alt={previewAlt}
+            onError={() => setFailed(true)}
+          />
+          {found ? (
+            <p className="intro-photo-path muted">
+              <code>{found.path}</code>
+              {queuedSrc
+                ? " — queued with this draft"
+                : found.path.startsWith("/")
+                  ? " — loads from the published site"
+                  : ""}
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <div className="image-placeholder">
+          <svg
+            className="placeholder-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="m21 15-5-5L5 21" />
+          </svg>
+          <strong>No intro photo yet</strong>
+          <p className="hint">
+            This photo sits beside your intro text on the home page. Insert one
+            here, or paste markdown like{" "}
+            <code>![alt](/images/home/intro/photo.webp)</code> into the editor.
+          </p>
+          <button type="button" onClick={onInsert}>
+            Insert image
+          </button>
+        </div>
+      )}
+    </section>
   );
 }

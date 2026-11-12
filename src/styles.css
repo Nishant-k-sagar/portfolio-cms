@@ -358,6 +358,59 @@ tr:last-child td {
   align-items: center;
 }
 
+/* Home intro: the photo slot that appears beside the intro text on the site. */
+.intro-photo h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.image-placeholder {
+  width: 100%;
+  display: grid;
+  place-items: center;
+  gap: 0.4rem;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  border: 2px dashed
+    color-mix(in srgb, var(--border) 60%, var(--muted));
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--muted);
+  aspect-ratio: 4 / 5;
+  max-height: 360px;
+}
+
+.image-placeholder .placeholder-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  opacity: 0.75;
+}
+
+.image-placeholder strong {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.image-placeholder .hint {
+  margin: 0;
+  font-size: 0.85rem;
+  max-width: 34ch;
+}
+
+.intro-photo-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.intro-photo-path {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+}
+
 .sticky-actions {
   position: sticky;
   bottom: 0.75rem;
