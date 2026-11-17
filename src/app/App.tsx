@@ -151,6 +151,7 @@ export function App() {
         ) : null}
         {route.name === "edit" ? (
           <Editor
+            key={`${route.collection}/${route.slug}`}
             config={config}
             collectionName={route.collection}
             slugParam={route.slug}
