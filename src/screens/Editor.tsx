@@ -155,7 +155,13 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
       setExpectedDraftSha(null);
       setUnknownFields([]);
       setLoading(false);
-      maybeOfferRestore(key, defaults, "");
+      // A new entry always opens blank. Drop any leftover local copy from an
+      // earlier unsaved "new entry" so it is never offered for restore.
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        // Storage can be unavailable; the form is blank either way.
+      }
       return;
     }
 
