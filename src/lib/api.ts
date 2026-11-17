@@ -20,13 +20,31 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   headers.set("x-requested-with", "portfolio-cms");
   if (init.body && !headers.has("content-type"))
     headers.set("content-type", "application/json");
-  const response = await fetch(path, {
-    ...init,
-    headers,
-    credentials: "same-origin",
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...init,
+      headers,
+      credentials: "same-origin",
+    });
+  } catch {
+    throw new ApiError(
+      0,
+      "network",
+      "Could not reach the CMS. Check your internet connection and try again.",
+    );
+  }
+  const text = await response.text().catch(() => "");
+  let data: unknown = {};
+  let parsed = true;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // A proxy or edge error page, not our API.
+      parsed = false;
+    }
+  }
   if (!response.ok) {
     const error = (
       data as {
@@ -39,12 +57,34 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     ).error;
     throw new ApiError(
       response.status,
-      error?.code ?? "error",
-      error?.message ?? "Request failed.",
+      error?.code ?? defaultCode(response.status),
+      error?.message ?? defaultMessage(response.status),
       error?.fields,
     );
   }
+  if (!parsed) {
+    throw new ApiError(
+      response.status,
+      "bad_response",
+      "The CMS sent a response that could not be read. Reload the page and try again.",
+    );
+  }
   return data as T;
+}
+
+function defaultCode(status: number): string {
+  if (status === 401 || status === 403) return "unauthorized";
+  if (status === 429) return "rate_limited";
+  if (status >= 500) return "upstream_error";
+  return "error";
+}
+
+function defaultMessage(status: number): string {
+  if (status === 401 || status === 403)
+    return "Your session has expired. Sign in again to continue.";
+  if (status === 429) return "Too many requests. Wait a minute and try again.";
+  if (status >= 500) return "The server had a problem. Try again shortly.";
+  return "Request failed.";
 }
 
 export interface PublicConfig {
