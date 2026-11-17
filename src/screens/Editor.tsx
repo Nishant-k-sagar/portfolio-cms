@@ -116,7 +116,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
   const [tab, setTab] = useState<"edit" | "preview">("edit");
   // On phones the single-column layout puts metadata above the writing
   // surface, so start collapsed there and let the author open it on demand.
-  const [metadataOpen] = useState(
+  const [metadataOpen, setMetadataOpen] = useState(
     () => !window.matchMedia("(max-width: 900px)").matches,
   );
   const [mediaOpen, setMediaOpen] = useState(false);
@@ -127,6 +127,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [conflictOpen, setConflictOpen] = useState(false);
+  const [failure, setFailure] = useState<PublishFailure | null>(null);
   const [publishResult, setPublishResult] = useState<{
     commitUrl: string;
     cleanupWarning?: string;
@@ -458,8 +459,7 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
       return { slug: targetSlug };
     } catch (error) {
       if (error instanceof ApiError) {
-        setFieldErrors(error.fields ?? {});
-        setNotice(error.message);
+        reportFieldFailure(error, "Could not save draft.");
       } else {
         setNotice(
           error instanceof Error ? error.message : "Could not save draft.",
@@ -471,9 +471,71 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
     }
   }
 
+  // Show a failed save/publish where the author can see it: list the problem
+  // fields in the notice and open Metadata, which is collapsed on phones.
+  function reportFieldFailure(error: ApiError, fallback: string) {
+    const fields = error.fields ?? {};
+    setFieldErrors(fields);
+    const messages = Object.values(fields);
+    setNotice(
+      messages.length > 0
+        ? `${error.message} ${messages.join(" ")}`
+        : error.message || fallback,
+    );
+    if (messages.length > 0) setMetadataOpen(true);
+  }
+
+  // Turn any publish failure into a dialog that says what went wrong and what
+  // to do next. A banner behind a modal is easy to miss, so this always shows.
+  function showPublishFailure(error: unknown) {
+    setPublishConfirmOpen(false);
+    const labelFor = (name: string) =>
+      collection.fields.find((field) => field.name === name)?.label ?? name;
+    if (!(error instanceof ApiError)) {
+      setFailure({
+        title: "Could not publish",
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : "Something unexpected went wrong.",
+        items: [],
+        kind: "other",
+      });
+      return;
+    }
+    const fields = error.fields ?? {};
+    const items = Object.entries(fields).map(
+      ([name, text]) => `${labelFor(name)}: ${text}`,
+    );
+    if (items.length > 0) {
+      setFieldErrors(fields);
+      setMetadataOpen(true);
+    }
+    const kind: FailureKind =
+      error.code === "network" || error.status === 0
+        ? "network"
+        : error.status === 401
+          ? "auth"
+          : error.status === 429
+            ? "rate"
+            : items.length > 0
+              ? "fields"
+              : "other";
+    setFailure({
+      title: kind === "fields" ? "Not ready to publish" : "Could not publish",
+      message: error.message,
+      items,
+      kind,
+    });
+  }
+
   async function publishInternal(overwrite: boolean) {
     const saved = await persistDraft({ silent: true });
-    if (!saved) return;
+    if (!saved) {
+      // The save notice sits behind the dialog, so close it.
+      setPublishConfirmOpen(false);
+      return;
+    }
     setPublishing(true);
     setNotice("");
     try {
@@ -490,17 +552,10 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
       setDirty(false);
       setNotice(result.cleanupWarning ?? "Published to main.");
     } catch (error) {
-      if (error instanceof ApiError) {
-        if (error.code === "conflict") {
-          setConflictOpen(true);
-        } else {
-          setFieldErrors(error.fields ?? {});
-          setNotice(error.message);
-        }
+      if (error instanceof ApiError && error.code === "conflict") {
+        setConflictOpen(true);
       } else {
-        setNotice(
-          error instanceof Error ? error.message : "Could not publish.",
-        );
+        showPublishFailure(error);
       }
     } finally {
       setPublishing(false);
@@ -708,7 +763,13 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
 
       <div className="editor-layout">
         <aside>
-          <details className="details" open={metadataOpen}>
+          <details
+            className="details"
+            open={metadataOpen}
+            onToggle={(event) =>
+              setMetadataOpen((event.currentTarget as HTMLDetailsElement).open)
+            }
+          >
             <summary>Metadata</summary>
             <div className="grid" style={{ marginTop: "0.75rem" }}>
               {isNew && !locked ? (
@@ -863,7 +924,21 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setPublishConfirmOpen(true)}
+                onClick={() => {
+                  const check = validateFields(collection, fields, "publish");
+                  if (!check.success) {
+                    showPublishFailure(
+                      new ApiError(
+                        400,
+                        "validation_failed",
+                        "Fill in the required fields below, then publish again. Nothing was published.",
+                        check.errors,
+                      ),
+                    );
+                    return;
+                  }
+                  setPublishConfirmOpen(true);
+                }}
                 disabled={saving || publishing}
               >
                 {publishing ? "Publishing…" : "Publish"}
@@ -955,6 +1030,62 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
         </Modal>
       ) : null}
 
+      {failure ? (
+        <Modal title={failure.title} onClose={() => setFailure(null)}>
+          <p role="alert" className="warning">
+            {failure.message}
+          </p>
+          {failure.items.length > 0 ? (
+            <ul>
+              {failure.items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          ) : null}
+          {failure.kind === "fields" ? (
+            <p className="muted">
+              The fields are marked in Metadata. Your edits are still in the
+              editor and nothing was published.
+            </p>
+          ) : null}
+          {failure.kind === "auth" ? (
+            <p className="muted">
+              Your edits are kept in this browser. Sign in again, then reopen
+              this entry and publish.
+            </p>
+          ) : null}
+          {failure.kind === "network" ? (
+            <p className="muted">
+              Your edits are kept in this browser. Reconnect and press Publish
+              again.
+            </p>
+          ) : null}
+          {failure.kind === "rate" ? (
+            <p className="muted">Wait a minute, then press Publish again.</p>
+          ) : null}
+          {failure.kind === "other" ? (
+            <p className="muted">
+              Nothing was published. Your draft is saved, so you can try again.
+            </p>
+          ) : null}
+          <div className="toolbar">
+            {failure.kind === "auth" ? (
+              <a className="button primary" href="/api/auth/login">
+                Sign in again
+              </a>
+            ) : (
+              <button
+                type="button"
+                className="primary"
+                onClick={() => setFailure(null)}
+              >
+                {failure.kind === "fields" ? "Fix fields" : "OK"}
+              </button>
+            )}
+          </div>
+        </Modal>
+      ) : null}
+
       {conflictOpen ? (
         <Modal
           title="Published file changed on GitHub"
@@ -983,6 +1114,15 @@ export function Editor({ config, collectionName, slugParam }: EditorProps) {
       ) : null}
     </>
   );
+}
+
+type FailureKind = "fields" | "auth" | "network" | "rate" | "other";
+
+interface PublishFailure {
+  title: string;
+  message: string;
+  items: string[];
+  kind: FailureKind;
 }
 
 function Modal({
@@ -1018,9 +1158,7 @@ function Modal({
 
 const INTRO_IMAGE_PATTERN = /!\[([^\]\n]*)\]\(([^)]+)\)/;
 
-function extractIntroImage(
-  body: string,
-): { alt: string; path: string } | null {
+function extractIntroImage(body: string): { alt: string; path: string } | null {
   const match = INTRO_IMAGE_PATTERN.exec(body);
   if (!match) return null;
   // The URL may carry an optional `title` after the path inside the parens.
